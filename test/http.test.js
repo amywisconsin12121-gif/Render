@@ -31,7 +31,7 @@ test('official MCP client can discover tools, receive real image blocks, inspect
   t.after(() => client.close());
   await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)));
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 5);
+  assert.equal(tools.length, 6);
   assert.ok(tools.every(tool => tool.annotations.readOnlyHint));
   const challenge = await client.callTool({ name: 'vision_self_test', arguments: {} });
   const metadata = JSON.parse(challenge.content[0].text);
@@ -48,6 +48,15 @@ test('official MCP client can discover tools, receive real image blocks, inspect
   const id = JSON.parse(found.content[1].text).candidate_id;
   const inspected = await client.callTool({ name: 'inspect_image', arguments: { candidate_id: id } });
   assert.equal(inspected.content[1].type, 'image');
+  const showTool = tools.find(tool => tool.name === 'show_images');
+  assert.equal(showTool._meta.ui.resourceUri, 'ui://image-scout/image-gallery-v1.html');
+  const shown = await client.callTool({ name: 'show_images', arguments: { candidate_ids: [id] } });
+  assert.equal(shown._meta.imageScoutGallery.images[0].mime_type, 'image/jpeg');
+  assert.equal(shown.content.filter(block => block.type === 'image').length, 1);
+  const { resources } = await client.listResources();
+  const gallery = await client.readResource({ uri: resources[0].uri });
+  assert.equal(gallery.contents[0].mimeType, 'text/html;profile=mcp-app');
+  assert.match(gallery.contents[0].text, /ui\/notifications\/tool-result/);
   const resolved = await client.callTool({ name: 'get_image_links', arguments: { candidate_ids: [id] } });
   assert.equal(JSON.parse(resolved.content[0].text).selections[0].image_url, 'https://example.com/original.jpg');
 });
