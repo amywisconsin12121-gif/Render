@@ -3,6 +3,7 @@ import { downloadBuffer } from './network.js';
 import { normalizeImage, imageContent } from './images.js';
 import { SearchProvider } from './providers.js';
 import { VisionSelfTest } from './self-test.js';
+import { galleryResult } from './gallery.js';
 
 export const textContent = value => ({ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) });
 
@@ -74,7 +75,7 @@ export class ImageScout {
     const content = [textContent({
       query, provider: this.config.provider, images_supplied: loaded.length, skipped,
       next_start: cursor < results.length ? cursor : null,
-      instructions: 'The following blocks contain actual image pixels. Each neutral ID labels the image immediately after it. Judge visible content, not metadata. Use inspect_image for detail, then get_image_links for the chosen IDs. If these image blocks are not visible to you, say so. This server does not decide which picture matches.',
+      instructions: 'The following blocks contain actual image pixels. Each neutral ID labels the image immediately after it. Judge visible content, not metadata. Use inspect_image for detail, show_images to display the chosen IDs, then get_image_links for their sources. If these image blocks are not visible to you, say so. This server does not decide which picture matches.',
     })];
     for (const { id, candidate } of loaded) {
       content.push(textContent({ candidate_id: id, view: 'search_preview', width: candidate.preview.width, height: candidate.preview.height }));
@@ -83,17 +84,33 @@ export class ImageScout {
     return { content };
   }
 
-  async inspect(id) {
+  async loadCandidateImage(id, preferOriginal = true) {
     const candidate = this.candidates.get(id);
-    let image;
+    let image = candidate.preview;
     let view = 'original_image_resized';
-    try { image = await this.fetchImage(candidate.originalUrl, 1600); }
-    catch {
-      image = candidate.preview;
-      view = 'search_preview_only_original_unavailable';
+    if (preferOriginal) {
+      try { image = await this.fetchImage(candidate.originalUrl, 1600); }
+      catch { view = 'search_preview_only_original_unavailable'; }
+    } else {
+      view = 'search_preview';
     }
+    return { id, image, view };
+  }
+
+  async inspect(id) {
+    const { image, view } = await this.loadCandidateImage(id);
     // No filename, title, alt text, or source URL is exposed at this stage.
     return { content: [textContent({ candidate_id: id, view, width: image.width, height: image.height }), imageContent(image)] };
+  }
+
+  async show(ids, title = 'Selected images', preferOriginal = true) {
+    const unique = [...new Set(ids)];
+    if (unique.length < 1 || unique.length > 4) throw new Error('Display one to four candidate images at a time.');
+    // Validate all IDs before making outbound requests for any of them.
+    for (const id of unique) this.candidates.get(id);
+    const pictures = await Promise.all(unique.map(id => this.loadCandidateImage(id, preferOriginal)));
+    return galleryResult(title, pictures,
+      'The plugin downloaded real image copies and supplied their bytes to the in-chat viewer. Do not replace the viewer with an external Markdown image or invent a sandbox path. A standard MCP image payload is also supplied for visual inspection. File download and Save to ChatGPT controls depend on the host. This does not automatically create a native chat attachment or write to Python. Return source links with get_image_links.');
   }
 
   links(ids) {
@@ -108,15 +125,15 @@ export class ImageScout {
     });
     return { content: [textContent({
       selections,
-      instructions: 'Return the selected original-image link and source-page link. You may embed the image with Markdown if this client renders external images. Links can fail or change at the original host. Explain the match using what you actually saw, and acknowledge uncertainty. Fetching pixels does not by itself prove you visually checked them.',
+      instructions: 'Return the selected original-image link and source-page link. Use show_images to display downloaded copies in the plugin viewer; external Markdown image embeds are not required. Links can fail or change at the original host. Explain the match using what you actually saw, and acknowledge uncertainty. Fetching pixels does not by itself prove you visually checked them.',
     })] };
   }
 
   async selfTest() {
     const { id, image } = await this.vision.create();
-    return { content: [
-      textContent({ challenge_id: id, instructions: 'Read the six-digit number in this image, then call check_image_vision with this challenge_id and the number. The answer is not in the text or ID. If you cannot see the image, report that honestly.' }),
-      imageContent(image),
-    ] };
+    const result = galleryResult('Image delivery test', [{ id, image, view: 'vision_self_test' }],
+      'The user-facing viewer should show the test picture. Independently read the six-digit number from the MCP image content, then call check_image_vision. If you cannot see the image, report that honestly.');
+    result.content.unshift(textContent({ challenge_id: id, instructions: 'Read the six-digit number in this image, then call check_image_vision with this challenge_id and the number. The answer is not in the text or ID. If you cannot see the image, report that honestly.' }));
+    return result;
   }
 }
