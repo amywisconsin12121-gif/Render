@@ -10,12 +10,17 @@ const client = new Client({ name: 'image-scout-smoke', version: '1.0.0' });
 try {
   await client.connect(new StreamableHTTPClientTransport(new URL(url)));
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 5);
+  assert.equal(tools.length, 6);
+  assert.ok(tools.find(tool => tool.name === 'show_images')?._meta?.ui?.resourceUri);
+  const resources = await client.listResources();
+  const template = await client.readResource({ uri: resources.resources[0].uri });
+  assert.equal(template.contents[0].mimeType, 'text/html;profile=mcp-app');
   const result = await client.callTool({ name: 'vision_self_test', arguments: {} });
   const block = result.content.find(item => item.type === 'image');
   assert.ok(block?.data, 'Self-test did not return an image content block.');
   const metadata = await sharp(Buffer.from(block.data, 'base64')).metadata();
   assert.equal(metadata.width, 540);
+  assert.ok(result._meta?.imageScoutGallery?.images[0]?.base64, 'Viewer did not receive image bytes.');
   console.log('MCP connection, tool discovery, and real image transport passed.');
   const searchIndex = process.argv.indexOf('--search');
   if (searchIndex !== -1) {
@@ -27,7 +32,7 @@ try {
     assert.ok(images.length > 0, 'No actual image pixels received.');
     console.log(`Live search returned ${images.length} image payload(s).`);
   }
-  console.log('Next: run the visual self-test inside regular ChatGPT. This script checks transport, not ChatGPT vision.');
+  console.log('Next: run the visual self-test inside regular ChatGPT. Confirm both that the model reads the code and that YOU see the picture in the viewer.');
 } catch (error) {
   // Connection errors may include the private URL. Never print that URL.
   console.error('Smoke check failed:', error.message.replace(/https?:\/\/[^\s)]+/g, '[private URL]'));
