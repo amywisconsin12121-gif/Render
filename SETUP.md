@@ -1,5 +1,7 @@
 # Host Image Scout, then use it in regular Chat
 
+Already running an earlier version? Follow [UPDATE.md](UPDATE.md) instead.
+
 ## 1. Put the code on GitHub
 
 Unzip the download. Create an empty GitHub repository. Use **Add file → Upload files** to upload the **contents of the `image-scout` folder**: `package.json`, `Dockerfile`, `render.yaml`, the `src` folder, and the other supplied files must be at the repository root. Commit the upload.
@@ -30,11 +32,11 @@ Send:
 
 > Run Image Scout's vision_self_test, read the six-digit code from the image, and check it with check_image_vision. If you cannot see the image, say so.
 
-Only proceed if the check reports `passed: true`. The answer is randomly generated and withheld from text metadata. This checks pixel delivery in your client; it does not guarantee that every later visual judgment is correct.
+Only proceed if the check reports `passed: true` **and you can see the test picture in the plugin viewer**. The answer is randomly generated and withheld from text metadata. Model vision and user-facing display are separate checks. This does not guarantee that every later visual judgment is correct.
 
 Then try:
 
-> Search for “black cat looking left”. Inspect the actual images. Choose one where the cat is facing toward the left edge of the picture. Use a larger view if unclear. Return its image and source link. If none matches, keep searching or say none matches. Do not choose using filenames, captions, tags, or URLs.
+> Search for “black cat looking left”. Inspect the actual images. Choose one where the cat is facing toward the left edge of the picture. Use a larger view if unclear. Display it with show_images and give me its source link. If none matches, keep searching or say none matches. Do not choose using filenames, captions, tags, or URLs.
 
 If the self-test fails, do not accept a claim that the search was visually verified. The server cannot force your ChatGPT client to provide tool images to its model.
 

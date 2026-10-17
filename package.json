@@ -1,6 +1,6 @@
 {
   "name": "image-scout-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Self-hosted image search that returns actual pixels to ChatGPT over MCP.",
   "type": "module",
@@ -19,5 +19,8 @@
     "ipaddr.js": "2.2.0",
     "sharp": "0.35.5",
     "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "jsdom": "29.1.1"
   }
 }
