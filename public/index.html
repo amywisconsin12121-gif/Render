@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Scout · Connect to ChatGPT</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/connect.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">IMAGE SCOUT</p>
+    <h1>Search by words.<br>Choose by sight.</h1>
+    <p class="lead">Connect this server to regular ChatGPT Chat to search for existing images and inspect their actual pixels.</p>
+    <section aria-labelledby="connection-heading">
+      <h2 id="connection-heading">Your private connection</h2>
+      <p>Paste <strong>MCP_SECRET</strong> from your hosting settings. It stays in this browser; this page uses it to calculate your connection URL.</p>
+      <label for="secret">Server secret</label>
+      <input type="password" id="secret" placeholder="Paste MCP_SECRET" autocomplete="off" spellcheck="false">
+      <button id="build" type="button">Create connection URL</button>
+      <p id="message" role="status"></p>
+      <div id="result" hidden>
+        <label for="url">MCP server URL · keep private</label>
+        <input id="url" readonly spellcheck="false">
+        <button id="copy" type="button">Copy URL</button>
+        <ol>
+          <li>Open ChatGPT → Plugins → <strong>+</strong> → <strong>Add custom MCP server</strong>.</li>
+          <li>Name it <strong>Image Scout</strong>. Paste this URL and choose <strong>No authentication</strong>. The secret in the URL controls access.</li>
+          <li>Create and enable it. Start a new <strong>Chat</strong>, then select <strong>@Image Scout</strong>.</li>
+          <li>Ask: <strong>Run the vision self-test and check the code you see.</strong></li>
+        </ol>
+      </div>
+    </section>
+    <p class="note">The self-test checks whether this ChatGPT client receives tool images. If it fails, do not rely on claims of visual inspection. Custom tools depend on your account and workspace settings.</p>
+  </main>
+</body>
+</html>
