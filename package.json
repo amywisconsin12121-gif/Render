@@ -1,0 +1,23 @@
+{
+  "name": "image-scout-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted image search that returns actual pixels to ChatGPT over MCP.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "setup": "node scripts/setup.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "smoke": "node --env-file-if-exists=.env scripts/smoke.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "express": "5.1.0",
+    "ipaddr.js": "2.2.0",
+    "sharp": "0.35.5",
+    "zod": "3.25.76"
+  }
+}

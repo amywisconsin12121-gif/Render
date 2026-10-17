@@ -1,0 +1,13 @@
+services:
+  image-scout:
+    build: .
+    env_file: .env
+    ports:
+      - "127.0.0.1:9000:9000"
+    restart: unless-stopped
+    init: true
+    mem_limit: 512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

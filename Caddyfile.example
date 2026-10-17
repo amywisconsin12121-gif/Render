@@ -1,0 +1,7 @@
+# Optional: for your own VPS with Caddy installed on the host.
+# Point this domain's DNS to your VPS; allow inbound ports 80 and 443.
+# Start Image Scout with docker compose up -d, set PUBLIC_BASE_URL to this
+# HTTPS origin in .env, and use this configuration with Caddy.
+images.your-domain.example {
+    reverse_proxy 127.0.0.1:9000
+}
