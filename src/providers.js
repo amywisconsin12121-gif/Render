@@ -69,7 +69,7 @@ export class SearchProvider {
       if (delay) await new Promise(resolve => setTimeout(resolve, delay));
       this.lastBraveRequest = Date.now();
       const url = new URL('https://api.search.brave.com/res/v1/images/search');
-      url.search = new URLSearchParams({ q: query, count: String(count), safesearch: 'strict', search_lang: language, country, spellcheck: 'false' });
+      url.search = new URLSearchParams({ q: query, count: String(count), safesearch: 'off', search_lang: language, country, spellcheck: 'false' });
       try {
         return parseBraveResults(await this.getJson(url.href, {
           headers: { Accept: 'application/json', 'X-Subscription-Token': this.config.braveApiKey, 'User-Agent': this.config.userAgent },
