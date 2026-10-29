@@ -5,8 +5,10 @@ export function loadConfig(env = process.env) {
   if (secret.length < 32 || secret.length > 512 || secret.startsWith('replace-with-')) {
     throw new Error('Set MCP_SECRET to a random password of 32–512 characters. Run npm run setup.');
   }
-  const provider = env.SEARCH_PROVIDER || (env.BRAVE_API_KEY ? 'brave' : 'wikimedia');
-  if (!['brave', 'wikimedia'].includes(provider)) throw new Error('SEARCH_PROVIDER must be brave or wikimedia.');
+  const provider = (env.SEARCH_PROVIDER || 'serper').trim().toLowerCase();
+  if (!['serper', 'google', 'brave', 'wikimedia'].includes(provider)) throw new Error('SEARCH_PROVIDER must be serper, google, brave, or wikimedia.');
+  const googleMode = (env.GOOGLE_MODE || 'html').trim().toLowerCase();
+  if (!['html', 'api'].includes(googleMode)) throw new Error('GOOGLE_MODE must be html or api.');
   const port = Number(env.PORT || 9000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT.');
   const publicBase = env.PUBLIC_BASE_URL || env.RENDER_EXTERNAL_URL || '';
@@ -23,6 +25,10 @@ export function loadConfig(env = process.env) {
     port,
     host: env.HOST || '0.0.0.0',
     provider,
+    serperApiKey: (env.SERPER_API_KEY || '').trim(),
+    googleMode,
+    googleApiKey: (env.GOOGLE_API_KEY || '').trim(),
+    googleCseId: (env.GOOGLE_CSE_ID || '').trim(),
     braveApiKey: (env.BRAVE_API_KEY || '').trim(),
     mcpToken: createHash('sha256').update(secret).digest('hex'),
     publicBase: publicBase ? new URL(publicBase).origin : '',

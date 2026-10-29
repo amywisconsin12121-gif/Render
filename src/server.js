@@ -38,7 +38,11 @@ export function createApp(config, { scout = new ImageScout(config) } = {}) {
     res.type('html').send(page);
   });
   app.use('/assets', express.static(new URL('../public/', import.meta.url).pathname, { index: false, dotfiles: 'deny', etag: false }));
-  app.get('/healthz', (req, res) => res.json({ status: 'ok', service: 'image-scout', search_provider: config.provider, search_ready: config.provider === 'wikimedia' || Boolean(config.braveApiKey) }));
+  const searchReady = (config.provider === 'serper' && Boolean(config.serperApiKey))
+    || config.provider === 'wikimedia'
+    || (config.provider === 'brave' && Boolean(config.braveApiKey))
+    || (config.provider === 'google' && (config.googleMode === 'html' || (Boolean(config.googleApiKey) && Boolean(config.googleCseId))));
+  app.get('/healthz', (req, res) => res.json({ status: 'ok', service: 'image-scout', search_provider: config.provider, google_mode: config.provider === 'google' ? config.googleMode : undefined, search_ready: searchReady }));
 
   const authenticate = (req, res, next) => {
     const token = req.params.token || '';

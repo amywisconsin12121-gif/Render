@@ -56,6 +56,8 @@ export async function downloadBuffer(value, {
   maxBytes = 10 * 1024 * 1024,
   timeoutMs = 12000,
   maxRedirects = 3,
+  method = 'GET',
+  body = null,
   headers = {},
 } = {}) {
   const deadline = Date.now() + timeoutMs;
@@ -63,7 +65,7 @@ export async function downloadBuffer(value, {
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw new DownloadError('Download timed out.');
-    const result = await requestOnce(url, { maxBytes, timeoutMs: remaining, headers });
+    const result = await requestOnce(url, { maxBytes, timeoutMs: remaining, method, body, headers });
     if (result.redirect) {
       if (hop === maxRedirects) throw new DownloadError('Too many redirects.');
       const next = validatePublicUrl(new URL(result.redirect, url).href);
@@ -79,15 +81,17 @@ export async function downloadBuffer(value, {
   throw new DownloadError('Download failed.');
 }
 
-function requestOnce(url, { maxBytes, timeoutMs, headers }) {
+function requestOnce(url, { maxBytes, timeoutMs, method = 'GET', body = null, headers }) {
   return new Promise((resolve, reject) => {
     const transport = url.protocol === 'https:' ? https : http;
-    const request = transport.get(url, {
+    const options = {
       lookup: safeLookup,
       agent: false,
+      method,
       headers: { 'Accept-Encoding': 'identity', ...headers },
       signal: AbortSignal.timeout(timeoutMs),
-    }, response => {
+    };
+    const onResponse = response => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
         const redirect = response.headers.location;
         response.destroy();
@@ -115,7 +119,14 @@ function requestOnce(url, { maxBytes, timeoutMs, headers }) {
       });
       response.on('end', () => resolve({ buffer: Buffer.concat(chunks), contentType: String(response.headers['content-type'] || '') }));
       response.on('error', reject);
-    });
+    };
+    const request = method === 'GET' && body == null
+      ? transport.get(url, options, onResponse)
+      : transport.request(url, options, onResponse);
+    if (method !== 'GET' || body != null) {
+      if (body != null) request.write(body);
+      request.end();
+    }
     request.on('error', error => {
       reject(error instanceof DownloadError ? error : new DownloadError(error.name === 'AbortError' ? 'Download timed out.' : 'Could not download from this host.'));
     });
@@ -126,4 +137,9 @@ export async function downloadJson(url, options = {}) {
   const { buffer } = await downloadBuffer(url, { maxBytes: 2 * 1024 * 1024, maxRedirects: 0, ...options });
   try { return JSON.parse(buffer.toString('utf8')); }
   catch { throw new DownloadError('Search provider returned invalid JSON.'); }
+}
+
+export async function downloadText(url, options = {}) {
+  const result = await downloadBuffer(url, { maxBytes: 4 * 1024 * 1024, maxRedirects: 0, ...options });
+  return { ...result, text: result.buffer.toString('utf8') };
 }

@@ -36,8 +36,8 @@ export function createMcpServer(scout) {
       query: z.string().trim().min(1).max(400).describe('Specific image search term, up to 50 words.'),
       count: z.number().int().min(1).max(10).default(6).describe('Number of pictures to supply in this batch.'),
       start: z.number().int().min(0).max(48).default(0).describe('Use next_start from the previous batch. This is applied locally; Brave has no offset API parameter.'),
-      language: z.string().regex(/^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$/).default('en').describe('Brave search language, such as en or ar. Ignored in Wikimedia mode.'),
-      country: z.string().regex(/^(?:[A-Z]{2}|ALL)$/).default('ALL').describe('Brave country code, such as US or ALL. Ignored in Wikimedia mode.'),
+      language: z.string().regex(/^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$/).default('en').describe('Google/Serper/Brave search language, such as en or ar. Ignored in Wikimedia mode.'),
+      country: z.string().regex(/^(?:[A-Z]{2}|ALL)$/).default('ALL').describe('Google/Serper/Brave country code, such as US or ALL. Ignored in Wikimedia mode.'),
     },
     annotations,
   }, guarded(args => scout.search(args)));
