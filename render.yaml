@@ -9,6 +9,10 @@ services:
       - key: MCP_SECRET
         generateValue: true
       - key: SEARCH_PROVIDER
-        value: wikimedia
+        value: serper
+      - key: SERPER_API_KEY
+        sync: false
+      - key: GOOGLE_MODE
+        value: html
       - key: PORT
         value: "9000"
