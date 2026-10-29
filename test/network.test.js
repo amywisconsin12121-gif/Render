@@ -54,3 +54,29 @@ test('streamed downloads stop at the byte limit even without Content-Length', as
   });
   await assert.rejects(downloadBuffer('https://example.com/image', { maxBytes: 10 }), /too large/);
 });
+
+test('JSON POST downloads send the request body and headers through the safe transport', async t => {
+  let sent = '';
+  t.mock.method(https, 'request', (url, options, callback) => {
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers['Content-Type'], 'application/json');
+    const request = new EventEmitter();
+    request.write = chunk => { sent += chunk.toString(); };
+    request.end = () => queueMicrotask(() => {
+      const response = new EventEmitter();
+      response.statusCode = 200;
+      response.headers = { 'content-type': 'application/json', 'content-length': '13' };
+      response.destroy = () => {};
+      callback(response);
+      response.emit('data', Buffer.from('{"images":[]}'));
+      response.emit('end');
+    });
+    return request;
+  });
+  const result = await downloadBuffer('https://example.com/api', {
+    method: 'POST', body: '{"q":"cat"}', headers: { 'Content-Type': 'application/json' },
+  });
+  assert.equal(sent, '{"q":"cat"}');
+  assert.equal(result.contentType, 'application/json');
+  assert.equal(result.buffer.toString(), '{"images":[]}');
+});

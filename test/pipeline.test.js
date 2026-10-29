@@ -6,7 +6,7 @@ import { loadConfig } from '../src/config.js';
 import { normalizeImage, imageContent } from '../src/images.js';
 import { ImageScout } from '../src/service.js';
 import { CandidateCache } from '../src/cache.js';
-import { parseBraveResults, parseWikimediaResults, SearchProvider } from '../src/providers.js';
+import { parseBraveResults, parseGoogleApiResults, parseGoogleHtmlResults, parseSerperResults, parseWikimediaResults, SearchProvider } from '../src/providers.js';
 import { VisionSelfTest } from '../src/self-test.js';
 
 const config = loadConfig({ MCP_SECRET: 'test-secret-not-for-production-123456789', SEARCH_PROVIDER: 'wikimedia' });
@@ -19,6 +19,7 @@ const fixture = {
 
 test('config creates the same private URL token as the browser SHA-256 algorithm', () => {
   assert.equal(config.mcpToken, createHash('sha256').update('test-secret-not-for-production-123456789').digest('hex'));
+  assert.equal(loadConfig({ MCP_SECRET: 'default-serper-test-secret-1234567890' }).provider, 'serper');
   assert.throws(() => loadConfig({ MCP_SECRET: 'short' }), /MCP_SECRET/);
   assert.throws(() => loadConfig({ MCP_SECRET: 'replace-with-a-random-secret-at-least-32-characters' }), /MCP_SECRET/);
   assert.throws(() => loadConfig({ MCP_SECRET: 'long-enough-secret-for-test-123456789', PUBLIC_BASE_URL: 'http://public.example.com' }), /HTTPS/);
@@ -115,6 +116,94 @@ test('Wikimedia parser handles results and ignores non-image files', () => {
   assert.equal(parsed.length, 1);
   assert.equal(parsed[0].thumbnailUrl, 'https://example.com/thumb.jpg');
   assert.deepEqual(parseWikimediaResults({ batchcomplete: true }), []);
+});
+
+test('Google HTML parser extracts image pixels and keeps source URLs internal', () => {
+  const html = String.raw`<script>
+    AF_initDataCallback({data:[["https:\/\/images.example.com\/cat.jpg",640,480,"https:\/\/example.com\/cat-page"],
+      ["https://encrypted-tbn0.gstatic.com/images?q=tbn:abc",120,90,"https://example.com/cat-page"]]});
+  </script>`;
+  const parsed = parseGoogleHtmlResults(html);
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].originalUrl, 'https://images.example.com/cat.jpg');
+  assert.equal(parsed[0].thumbnailUrl, parsed[0].originalUrl);
+  assert.equal(parsed[0].sourcePageUrl, 'https://example.com/cat-page');
+  assert.equal(parsed[0].provider, 'google');
+  const noExtension = parseGoogleHtmlResults(String.raw`<script>["https://cdn.example.com/image-token",800,600,"https://example.com/token-page"]</script>`);
+  assert.equal(noExtension[0].originalUrl, 'https://cdn.example.com/image-token');
+  assert.equal(noExtension[0].sourcePageUrl, 'https://example.com/token-page');
+  assert.throws(() => parseGoogleHtmlResults('<div id="captcha-form" data-sitekey="x"></div>'), /human-verification/);
+});
+
+test('Google API parser separates original, thumbnail, and source-page fields', () => {
+  const parsed = parseGoogleApiResults({ items: [{
+    link: 'https://images.example.com/photo.jpg',
+    image: { thumbnailLink: 'https://thumbs.example.com/photo.jpg', contextLink: 'https://example.com/photo' },
+    title: 'Never returned during visual selection',
+  }, { link: 'http://127.0.0.1/private.jpg' }] });
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].originalUrl, 'https://images.example.com/photo.jpg');
+  assert.equal(parsed[0].thumbnailUrl, 'https://thumbs.example.com/photo.jpg');
+  assert.equal(parsed[0].sourcePageUrl, 'https://example.com/photo');
+});
+
+test('Serper parser separates original, thumbnail, and source-page fields', () => {
+  const parsed = parseSerperResults({ images: [
+    {
+      title: 'Never returned during visual selection',
+      imageUrl: 'https://images.example.com/photo.jpg',
+      thumbnailUrl: 'https://thumbs.example.com/photo.jpg',
+      link: 'https://example.com/photo',
+    },
+    { imageUrl: 'http://127.0.0.1/private.jpg' },
+  ] });
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].originalUrl, 'https://images.example.com/photo.jpg');
+  assert.equal(parsed[0].thumbnailUrl, 'https://thumbs.example.com/photo.jpg');
+  assert.equal(parsed[0].sourcePageUrl, 'https://example.com/photo');
+  assert.equal(parsed[0].provider, 'serper');
+});
+
+test('Serper provider sends one Google Images request with locale and private API key headers', async () => {
+  let request;
+  const provider = new SearchProvider({ ...config, provider: 'serper', serperApiKey: 'serper-test-key', userAgent: 'test-agent' }, async (value, options) => {
+    request = { value, options };
+    return { images: [{ imageUrl: 'https://images.example.com/photo.jpg', thumbnailUrl: 'https://thumbs.example.com/photo.jpg', link: 'https://example.com/photo' }] };
+  });
+  const results = await provider.search('red bird', { count: 6, language: 'en', country: 'JO' });
+  assert.equal(request.value, 'https://google.serper.dev/images');
+  assert.equal(request.options.method, 'POST');
+  assert.equal(request.options.headers['X-API-KEY'], 'serper-test-key');
+  assert.equal(request.options.headers['Content-Type'], 'application/json');
+  assert.deepEqual(JSON.parse(request.options.body), { q: 'red bird', hl: 'en', gl: 'jo', num: 30 });
+  assert.equal(results[0].provider, 'serper');
+});
+
+test('missing Serper key reports setup instead of fabricating Google results', async () => {
+  const provider = new SearchProvider({ ...config, provider: 'serper', serperApiKey: '' });
+  await assert.rejects(provider.search('cat', { count: 1 }), /SERPER_API_KEY/);
+});
+
+test('Google HTML provider sends safe-search and locale parameters without an API key', async () => {
+  let request;
+  const provider = new SearchProvider({ ...config, provider: 'google', googleMode: 'html', userAgent: 'test-agent' }, undefined, async (value, options) => {
+    request = { value, options };
+    return { text: '<script>["https://images.example.com/photo.jpg","https://example.com/page"]</script>' };
+  });
+  const results = await provider.search('red bird', { count: 2, language: 'en', country: 'JO' });
+  const url = new URL(request.value);
+  assert.equal(url.hostname, 'www.google.com');
+  assert.equal(url.searchParams.get('tbm'), 'isch');
+  assert.equal(url.searchParams.get('q'), 'red bird');
+  assert.equal(url.searchParams.get('safe'), 'active');
+  assert.equal(url.searchParams.get('gl'), 'JO');
+  assert.equal(request.options.headers['Accept-Language'], 'en,en;q=0.8');
+  assert.equal(results[0].provider, 'google');
+});
+
+test('Google API mode requires both credentials instead of fabricating results', async () => {
+  const provider = new SearchProvider({ ...config, provider: 'google', googleMode: 'api', googleApiKey: '', googleCseId: '' });
+  await assert.rejects(provider.search('cat', { count: 1 }), /GOOGLE_API_KEY/);
 });
 
 test('Brave request uses documented query fields without unsupported offset and caches next batches', async () => {
